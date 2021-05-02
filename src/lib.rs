@@ -24,6 +24,19 @@ where
     }
 
     #[inline]
+    fn take_ok(self) -> TakeOk<Self> {
+        TakeOk {
+            iter: self,
+            flag: false,
+        }
+    }
+
+    #[inline]
+    fn filter_ok(self) -> FilterOk<Self> {
+        FilterOk(self)
+    }
+
+    #[inline]
     fn try_collect<B>(self) -> Result<B, Self::Err>
     where
         B: FromIterator<Self::Ok>,
@@ -75,6 +88,37 @@ where
     }
 }
 
+pub struct TakeOk<I> {
+    iter: I,
+    flag: bool,
+}
+
+impl<I: TryIterator> Iterator for TakeOk<I> {
+    type Item = I::Ok;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.flag {
+            None
+        } else {
+            match self.iter.next()? {
+                Ok(x) => Some(x),
+                Err(_) => {
+                    self.flag = true;
+                    None
+                }
+            }
+        }
+    }
+}
+
+pub struct FilterOk<I>(I);
+
+impl<I: TryIterator> Iterator for FilterOk<I> {
+    type Item = I::Ok;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.find_map(Result::ok)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,8 +136,14 @@ mod tests {
         let v: Vec<_> = s.into_iter().map(str::parse::<i32>).try_collect().unwrap();
         assert_eq!(v, vec![1, 2, 3, 4]);
 
-        let s = vec!["1", "2", "three", "4"];
-        let v = s.into_iter().map(str::parse::<i32>).try_collect::<Vec<_>>();
+        let s = ["1", "2", "three", "4"];
+        let v = s.iter().map(|s| s.parse::<i32>()).try_collect::<Vec<_>>();
         assert!(v.is_err());
+
+        let v: Vec<_> = s.iter().map(|s| s.parse::<i32>()).take_ok().collect();
+        assert_eq!(v, vec![1, 2]);
+
+        let v: Vec<_> = s.iter().map(|s| s.parse::<i32>()).filter_ok().collect();
+        assert_eq!(v, vec![1, 2, 4]);
     }
 }
