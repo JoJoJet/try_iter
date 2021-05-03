@@ -15,12 +15,12 @@ pub trait TryIterator: Sized {
     }
 
     #[inline]
-    fn try_flat_map<F, T, E>(self, f: F) -> TryFlatMap<Self, F>
+    fn map_and_then<F, T, E>(self, f: F) -> MapAndThen<Self, F>
     where
         F: FnMut(Self::Ok) -> Result<T, E>,
         E: From<Self::Err>,
     {
-        TryFlatMap { iter: self, f }
+        MapAndThen { iter: self, f }
     }
 
     #[inline]
@@ -88,12 +88,12 @@ where
     }
 }
 
-pub struct TryFlatMap<I, F> {
+pub struct MapAndThen<I, F> {
     iter: I,
     f: F,
 }
 
-impl<I, F, T, E> Iterator for TryFlatMap<I, F>
+impl<I, F, T, E> Iterator for MapAndThen<I, F>
 where
     I: TryIterator,
     F: FnMut(I::Ok) -> Result<T, E>,
