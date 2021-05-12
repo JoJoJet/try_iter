@@ -48,6 +48,15 @@ pub trait TryIterator: Sized {
     }
 
     #[inline]
+    fn try_buffer(mut self) -> Result<IterBuffer<Self::Ok>, Self::Err> {
+        let mut v = Vec::new();
+        while let Some(x) = self.try_next() {
+            v.push(x?);
+        }
+        Ok(IterBuffer(v.into_iter()))
+    }
+
+    #[inline]
     fn try_collect<B>(mut self) -> Result<B, Self::Err>
     where
         B: FromIterator<Self::Ok>,
@@ -177,6 +186,34 @@ impl<I: TryIterator> Iterator for FilterOk<I> {
     }
 }
 
+pub struct IterBuffer<T>(std::vec::IntoIter<T>);
+
+impl<T> Iterator for IterBuffer<T> {
+    type Item = T;
+
+    #[inline]
+    fn next(&mut self) -> Option<T> {
+        self.0.next()
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+impl<T> ExactSizeIterator for IterBuffer<T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+impl<T> DoubleEndedIterator for IterBuffer<T> {
+    #[inline]
+    fn next_back(&mut self) -> Option<T> {
+        self.0.next_back()
+    }
+}
+impl<T> std::iter::FusedIterator for IterBuffer<T> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,5 +266,18 @@ mod tests {
             .try_collect()
             .unwrap();
         assert_eq!(v, vec![4, 5, 6]);
+    }
+
+    #[test]
+    fn try_buffer() {
+        let s = vec!["1", "2", "3", "4", "5"];
+        let v: Vec<_> = s
+            .into_iter()
+            .map(str::parse::<i32>)
+            .try_buffer()
+            .unwrap()
+            .map(|n| n + 2)
+            .collect();
+        assert_eq!(v, vec![3, 4, 5, 6, 7]);
     }
 }
